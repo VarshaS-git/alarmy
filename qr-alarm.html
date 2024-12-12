@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner with Alarm</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="html5-qrcode.min.js"></script>
+    <style>
+        main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+        #reader {
+            width: 300px;
+            margin: 20px auto;
+        }
+        #result, #set-alarm {
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 10px;
+        }
+        #reader {
+            display: none; /* Initially hidden */
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h2 id="main-heading">Step 1: Scan QR Code to Set Alarm</h2>
+        <div id="reader"></div>
+        <div id="result"></div>
+
+        <div id="set-alarm">
+            <label for="hour">Hour:</label>
+            <input type="number" id="hour" min="0" max="23" value="0"> <br>
+            <label for="minute">Minute:</label>
+            <input type="number" id="minute" min="0" max="59" value="1"> <br>
+            <button id="set-alarm-button">Set Alarm</button>
+            <p id="alarm-set"></p>
+        </div>
+
+        <!-- Alarm Sound -->
+        <audio id="alarmSound">
+            <source src="/iphone_alarm.mp3" type="audio/mpeg">
+            Your browser does not support the audio tag.
+        </audio>
+    </main>
+
+    <script>
+        const alarmSound = document.getElementById('alarmSound');
+        const readerElement = document.getElementById('reader');
+        const resultElement = document.getElementById('result');
+        const headingElement = document.getElementById('main-heading');
+        const setAlarmElement = document.getElementById('set-alarm');
+
+        let alarmTime = null;
+        let qrCodeScanned = null;
+        let isAlarmRinging = false;
+
+        const scanner = new Html5Qrcode("reader");
+
+        // Open webcam to scan QR code for setting the alarm
+        function openScannerToSetAlarm() {
+            resultElement.innerHTML = ''; // Clear result display
+            readerElement.style.display = 'block'; // Show the scanner
+            headingElement.textContent = 'Step 1: Scan QR Code to Set Alarm';
+            setAlarmElement.style.display = 'none'; // Hide the Set Alarm section
+
+            scanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (scannedCode) => {
+                    qrCodeScanned = scannedCode;
+                    resultElement.innerHTML =`Scanned QR Code: ${scannedCode}`;
+                    scanner.stop();
+                    readerElement.style.display = 'none'; // Hide scanner after scanning
+                    openSetAlarmInterface();
+                },
+                (error) => {
+                    console.error("Error scanning QR Code:", error);
+                }
+            );
+        }
+
+        // Open "Set Alarm" interface
+        function openSetAlarmInterface() {
+            readerElement.style.display = 'none';
+            headingElement.textContent = 'Step 2: Set Alarm';
+            setAlarmElement.style.display = 'block';
+        }
+
+        // Open webcam to stop the alarm
+        function openScannerToStopAlarm() {
+            resultElement.innerHTML = 'Scan the QR code to stop the alarm.';
+            readerElement.style.display = 'block'; // Show the scanner
+            headingElement.textContent = 'Stop the Alarm';
+
+            scanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (scannedCode) => {
+                    if (scannedCode === qrCodeScanned) {
+                        stopAlarm();
+                        scanner.stop();
+                        readerElement.style.display = 'none'; // Hide scanner
+                        navigateToIndex(); // Redirect to index.html after stopping alarm
+                    } else {
+                        resultElement.innerHTML = 'Wrong QR code! Try again.';
+                    }
+                },
+                (error) => {
+                    console.error("Error scanning QR Code:", error);
+                }
+            );
+        }
+
+        // Stop alarm logic
+        function stopAlarm() {
+            alarmSound.pause();
+            alarmSound.currentTime = 0; // Reset the alarm sound
+            alarmSound.loop = false; // Stop looping
+            isAlarmRinging = false;
+            resultElement.innerHTML = 'Alarm stopped!';
+        }
+
+        // Navigate to index.html
+        function navigateToIndex() {
+            window.location.href = '/index.html';
+        }
+
+        // Set alarm logic
+        document.getElementById('set-alarm-button').addEventListener('click', () => {
+            const hour = parseInt(document.getElementById('hour').value);
+            const minute = parseInt(document.getElementById('minute').value);
+
+            if (!qrCodeScanned) {
+                alert('Please scan a QR code before setting the alarm.');
+                return;
+            }
+
+            alarmTime = { hour, minute };
+            document.getElementById('alarm-set').textContent = `Alarm set for ${hour}:${minute}`;
+        });
+
+        // Check every second if the alarm should ring
+        setInterval(() => {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+
+            if (
+                alarmTime &&
+                !isAlarmRinging &&
+                alarmTime.hour === currentHour &&
+                alarmTime.minute === currentMinute
+            ) {
+                alarmSound.loop = true; // Ensure alarm loops while ringing
+                alarmSound.play();
+                isAlarmRinging = true;
+                openScannerToStopAlarm(); // Open scanner to stop the alarm
+            }
+        }, 1000);
+
+        // Initialize scanner for setting the alarm when the page loads
+        window.onload = openScannerToSetAlarm;
+    </script>
+</body>
+</html>
